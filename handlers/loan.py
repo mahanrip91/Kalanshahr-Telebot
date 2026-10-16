@@ -93,6 +93,8 @@ async def loan_request_confirm(callback: CallbackQuery, state: FSMContext, sessi
 
     db_user.loan_amount = total_owed
     db_user.loan_due = datetime.utcnow() + timedelta(days=LOAN_MAX_DAYS)
+    # اولین جریمه فقط پس از گذشت ۲۴ ساعت از سررسید محاسبه می‌شود.
+    db_user.loan_last_penalty_at = db_user.loan_due
     db_user.cash += amount
     await log_transaction(session, db_user.id, "loan_take", amount, "دریافت وام")
     await session.commit()
@@ -121,11 +123,24 @@ async def loan_repay_start(callback: CallbackQuery, state: FSMContext, session, 
         await callback.answer("✅ هیچ وام بازی نداری!", show_alert=True)
         return
 
-    if db_user.loan_due and datetime.utcnow() > db_user.loan_due:
-        days_late = (datetime.utcnow() - db_user.loan_due).days + 1
-        penalty = db_user.loan_amount * LOAN_LATE_PENALTY_PER_DAY * days_late
-        db_user.loan_amount += penalty
-        await session.commit()
+    now = datetime.utcnow()
+    if db_user.loan_due and now > db_user.loan_due:
+        # برای وام‌های قدیمی که هنوز زمان جریمه ندارند، از سررسید استفاده می‌شود.
+        reference = db_user.loan_last_penalty_at or db_user.loan_due
+        elapsed = (now - reference).total_seconds()
+        days_to_charge = int(elapsed // 86400)
+
+        if days_to_charge > 0:
+            penalty = round(
+                db_user.loan_amount
+                * LOAN_LATE_PENALTY_PER_DAY
+                * days_to_charge
+            )
+            db_user.loan_amount += penalty
+            db_user.loan_last_penalty_at = (
+                reference + timedelta(days=days_to_charge)
+            )
+            await session.commit()
 
     await state.set_state(LoanStates.waiting_repay)
     await callback.message.edit_text(
@@ -182,6 +197,7 @@ async def loan_repay_confirm(callback: CallbackQuery, state: FSMContext, session
     if db_user.loan_amount <= 0:
         db_user.loan_amount = 0
         db_user.loan_due = None
+        db_user.loan_last_penalty_at = None
 
     await log_transaction(session, db_user.id, "loan_repay", -pay, "بازپرداخت وام")
     await session.commit()

@@ -31,6 +31,7 @@ class User(Base):
 
     loan_amount: Mapped[float] = mapped_column(Float, default=0)
     loan_due: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    loan_last_penalty_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
 
     job: Mapped[str] = mapped_column(String(64), nullable=True)
     job_level: Mapped[int] = mapped_column(Integer, default=1)

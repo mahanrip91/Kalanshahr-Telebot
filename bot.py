@@ -3,6 +3,7 @@
 """
 import asyncio
 import logging
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
@@ -35,11 +36,15 @@ async def main():
         await seed_market(session)
     logger.info("بازارهای مالی مقداردهی شدن.")
 
+    # پراکسی اختیاری است؛ روی سرور بدون پراکسی گوشی هم اجرا می‌شود.
+    proxy = os.getenv("BOT_PROXY", "").strip()
+    session = AiohttpSession(proxy=proxy) if proxy else AiohttpSession()
+
     bot = Bot(
-    token=settings.BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    session=AiohttpSession(proxy="http://127.0.0.1:10819")
-)
+        token=settings.BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=session,
+    )
     dp = Dispatcher(storage=MemoryStorage())
 
     # میان‌افزار دیتابیس/کاربر روی تمام آپدیت‌ها

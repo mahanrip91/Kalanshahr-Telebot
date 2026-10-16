@@ -270,7 +270,22 @@ async def crime_group_menu(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "crime_group_start")
-async def crime_group_start(callback: CallbackQuery):
+async def crime_group_start(callback: CallbackQuery, db_user: User):
+    if callback.message.chat.type not in ("group", "supergroup"):
+        await callback.answer(
+            "❌ سرقت گروهی فقط داخل گروه‌ها فعاله!",
+            show_alert=True,
+        )
+        return
+
+    if is_in_prison(db_user):
+        remain = (db_user.prison_until - datetime.utcnow()).total_seconds()
+        await callback.answer(
+            f"🚔 زندانی هستی! {fmt_seconds(remain)} باقی مونده.",
+            show_alert=True,
+        )
+        return
+
     chat_id = callback.message.chat.id
     if chat_id in active_heists:
         await callback.answer("❌ همین الان یه سرقت گروهی در جریانه!", show_alert=True)
@@ -293,7 +308,15 @@ async def crime_group_start(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "crime_group_join")
-async def crime_group_join(callback: CallbackQuery):
+async def crime_group_join(callback: CallbackQuery, db_user: User):
+    if is_in_prison(db_user):
+        remain = (db_user.prison_until - datetime.utcnow()).total_seconds()
+        await callback.answer(
+            f"🚔 زندانی هستی! {fmt_seconds(remain)} باقی مونده.",
+            show_alert=True,
+        )
+        return
+
     chat_id = callback.message.chat.id
     heist = active_heists.get(chat_id)
     if not heist:
