@@ -1,0 +1,131 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# فایل‌هایی که از چت دانلود می‌کنی میرن تو پوشه Download گوشی.
+# این اسکریپت خودش می‌شناستشون و می‌ذارتشون سرجای درستشون تو پروژه.
+# اگه یه اسم رو چندبار دانلود کرده باشی (مثلاً mayor.py و بعد mayor (1).py)
+# خودش جدیدترین نسخه رو انتخاب می‌کنه.
+#
+# قبل از اولین اجرا (فقط یه بار لازمه):
+#   termux-setup-storage
+#
+# اجرا از داخل پوشه پروژه:
+#   bash deploy.sh
+
+DOWNLOAD_DIR="$HOME/storage/downloads"
+if [ ! -d "$DOWNLOAD_DIR" ]; then
+    echo "❌ پوشه دانلود در دسترس نیست."
+    echo "   اول این دستور رو بزن و اجازه دسترسی به فایل‌ها رو بده: termux-setup-storage"
+    exit 1
+fi
+
+shopt -s nullglob nocaseglob
+
+declare -A FILE_MAP=(
+    ["bot.py"]="bot.py"
+    ["config.py"]="config.py"
+    ["install.sh"]="install.sh"
+    ["deploy.sh"]="deploy.sh"
+    ["requirements.txt"]="requirements.txt"
+    ["README.md"]="README.md"
+
+    ["economy.py"]="core/economy.py"
+    ["keyboards.py"]="core/keyboards.py"
+    ["menu_router.py"]="core/menu_router.py"
+    ["middlewares.py"]="core/middlewares.py"
+    ["reply_guard.py"]="core/reply_guard.py"
+    ["texts.py"]="core/texts.py"
+    ["auto_revert.py"]="core/auto_revert.py"
+
+    ["engine.py"]="database/engine.py"
+    ["models.py"]="database/models.py"
+
+    ["admin.py"]="handlers/admin.py"
+    ["bank.py"]="handlers/bank.py"
+    ["betting.py"]="handlers/betting.py"
+    ["crime.py"]="handlers/crime.py"
+    ["help.py"]="handlers/help.py"
+    ["leaderboard.py"]="handlers/leaderboard.py"
+    ["loan.py"]="handlers/loan.py"
+    ["profile.py"]="handlers/profile.py"
+    ["property.py"]="handlers/property.py"
+    ["rewards.py"]="handlers/rewards.py"
+    ["settings.py"]="handlers/settings.py"
+    ["shop.py"]="handlers/shop.py"
+    ["start.py"]="handlers/start.py"
+    ["work.py"]="handlers/work.py"
+
+    ["activation.py"]="handlers/city/activation.py"
+    ["admin_panel.py"]="handlers/city/admin_panel.py"
+    ["mayor.py"]="handlers/city/mayor.py"
+    ["prison.py"]="handlers/city/prison.py"
+    ["status.py"]="handlers/city/status.py"
+    ["treasury.py"]="handlers/city/treasury.py"
+
+    ["crypto.py"]="handlers/market/crypto.py"
+    ["forex.py"]="handlers/market/forex.py"
+    ["stocks.py"]="handlers/market/stocks.py"
+
+    ["market_engine.py"]="services/market_engine.py"
+    ["scheduler.py"]="services/scheduler.py"
+
+    ["formatting.py"]="utils/formatting.py"
+)
+
+# جدیدترین نسخه‌ی یه اسم فایل رو تو پوشه دانلود پیدا می‌کنه (بدون نیاز به find،
+# چون find توکاری ترموکس محدودتره و با الگوهای پیچیده مشکل داره)
+pick_file() {
+    local base="$1" ext="$2"
+    local existing=("$DOWNLOAD_DIR"/"$base"*."$ext")
+    if [ ${#existing[@]} -eq 0 ]; then
+        echo ""
+        return
+    fi
+    local latest="" latest_time=0
+    for f in "${existing[@]}"; do
+        [ -f "$f" ] || continue
+        local t
+        t=$(stat -c '%Y' "$f" 2>/dev/null || echo 0)
+        if [ "$t" -ge "$latest_time" ]; then
+            latest_time=$t
+            latest="$f"
+        fi
+    done
+    echo "$latest"
+}
+
+echo "📦 در حال استقرار فایل‌های تازه از پوشه دانلود..."
+moved=0
+not_found=()
+
+for fname in "${!FILE_MAP[@]}"; do
+    base="${fname%.*}"
+    ext="${fname##*.}"
+    src=$(pick_file "$base" "$ext")
+
+    if [ -n "$src" ]; then
+        dest="${FILE_MAP[$fname]}"
+        mkdir -p "$(dirname "$dest")" 2>/dev/null
+        cp "$src" "$dest"
+        echo "  ✅ $(basename "$src") → $dest"
+        moved=$((moved + 1))
+    else
+        not_found+=("$fname")
+    fi
+done
+
+echo ""
+echo "🎉 $moved فایل منتقل شد."
+
+if [ ${#not_found[@]} -gt 0 ] && [ ${#not_found[@]} -lt ${#FILE_MAP[@]} ]; then
+    echo ""
+    echo "ℹ️ این فایل‌ها تو پوشه دانلود پیدا نشدن (اگه تازه دانلودشون نکردی طبیعیه):"
+    for f in "${not_found[@]}"; do
+        echo "   • $f"
+    done
+fi
+
+if [ "$moved" -gt 0 ]; then
+    echo ""
+    echo "حالا برای اطمینان از سالم بودن سینتکس همه‌شون این رو بزن:"
+    echo "    find . -name '*.py' -not -path './database/*' -exec python -m py_compile {} +"
+    echo "بعدش ربات رو ری‌استارت کن: S Kalan"
+fi
